@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Language Trainer</title>
+    <meta name="description" content="A self-contained, offline-first language training application.">
+    <style>
+        /* CSS Reset and Base Styles */
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: rgba(44, 44, 44, 0.65);
+            --text-color: #e0e0e0;
+            --primary-color: #4CAF50;
+            --primary-hover: #66BB6A;
+            --accent-color: #03A9F4;
+            --accent-hover: #29B6F6;
+            --error-color: #F44336;
+            --warn-color: #FFC107;
+            --correct-color: #4CAF50;
+            --incorrect-color: #F44336;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            --border-radius: 12px;
+            --shadow: 0 4px 12px rgba(0,0,0,0.3);
+            --focus-ring: 0 0 0 3px rgba(3, 169, 244, 0.6);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            color-scheme: dark;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Layout & Cards */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 900px) {
+            .main-container {
+                grid-template-columns: repeat(3, 1fr);
+                grid-template-areas:
+                    "topbar topbar topbar"
+                    "stats play settings"
+                    "generator generator generator"
+                    "review review review";
+            }
+            .topbar { grid-area: topbar; }
+            .stats-card { grid-area: stats; }
+            .play-card { grid-area: play; }
+            .settings-card { grid-area: settings; }
+            .generator-card { grid-area: generator; }
+            .review-card { grid-area: review; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: var(--shadow);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+
+        .card-title {
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        /* Top Bar */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .topbar h1 {
+            font-size: 1.5rem;
+        }
+
+        /* Form Elements */
+        button, input, select {
+            font-family: inherit;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-color);
+            transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        button:focus-visible, input:focus-visible, select:focus-visible {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: var(--focus-ring);
+        }
+        
+        button {
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        button.primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        button.primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+
+        button.secondary {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        button.secondary:hover:not(:disabled) { background-color: var(--accent-hover); }
+        
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        input[type="text"] { width: 100%; }
+        select { width: 100%; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e0e0e0'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; padding-right: 2.5rem; }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        .form-group.inline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .form-group.inline label {
+             margin-bottom: 0;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.2);
+            transition: .4s;
+            border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        /* Play Card Specifics */
+        .play-card .question-area {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            min-height: 4em;
+        }
+        .play-card .question-area u {
+            text-decoration-color: var(--accent-color);
+            text-decoration-thickness: 2px;
+            font-weight: 600;
+        }
+        .play-card .answer-input {
+            text-align: center;
+            font-size: 1.2rem;
+        }
+        .play-card .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .play-card .feedback {
+            min-height: 1.5em;
+            margin-top: 1rem;
+            text-align: center;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        .feedback.correct { color: var(--correct-color); }
+        .feedback.incorrect { color: var(--incorrect-color); }
+        
+        /* Multiple Choice */
+        .mc-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+        }
+        .mc-option {
+            padding: 1rem;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+        .mc-option.correct-choice { background-color: var(--correct-color) !important; }
+        .mc-option.incorrect-choice { background-color: var(--incorrect-color) !important; }
+
+        /* Stats Card */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            text-align: center;
+        }
+        .stat-item .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+        .stat-item .label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        /* Generator Card */
+        .generator-card .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            width: 0%;
+            background-color: var(--accent-color);
+            transition: width 0.2s linear;
+        }
+        .generation-status {
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        /* Timers */
+        .timer-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 5px;
+            width: 100%;
+            background-color: var(--accent-color);
+            transform-origin: left;
+            transform: scaleX(0);
+            z-index: 10;
+        }
+
+        /* Review Card */
+        #mistakesList {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+        .mistake-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .mistake-item:last-child { border-bottom: none; }
+        .mistake-item .meta { font-size: 0.8rem; opacity: 0.7; margin-bottom: 0.25rem; }
+        .mistake-item .sentence u { text-decoration: none; color: var(--accent-color); font-weight: bold; }
+        .mistake-item .answers { font-size: 0.9rem; margin-top: 0.5rem; }
+        .mistake-item .given { color: var(--error-color); }
+        .mistake-item .correct { color: var(--correct-color); }
+        .review-card .controls {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Utility classes */
+        .hidden { display: none !important; }
+        [dir="rtl"] select {
+             background-position: left 1rem center;
+             padding-left: 2.5rem;
+             padding-right: 1rem;
+        }
+
+        /* Initial Load Overlay */
+        #initialLoadOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            flex-direction: column;
+            text-align: center;
+        }
+        #initialLoadOverlay p {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+        #initialLoadOverlay .progress-bar { width: 80%; max-width: 400px; height: 10px; }
+
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <h1>Lingua Offline</h1>
+        <div class="form-group">
+            <select id="uiLanguageSelector" aria-label="Select UI Language"></select>
+        </div>
+    </div>
+
+    <main class="main-container">
+        <section class="stats-card card">
+            <h2 class="card-title" data-i18n="statsTitle">Stats</h2>
+            <div id="gameModeDisplay" class="stat-item" style="grid-column: 1 / -1; margin-bottom: 1rem;">
+                <div class="value" data-i18n="modeTraining">Training</div>
+                <div class="label" data-i18n="gameMode">Game Mode</div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div id="scoreValue" class="value">0</div>
+                    <div class="label" data-i18n="score">Score</div>
+                </div>
+                <div class="stat-item">
+                    <div id="streakValue" class="value">0</div>
+                    <div class="label" data-i18n="streak">Streak</div>
+                </div>
+                <div class="stat-item">
+                    <div id="livesValue" class="value">&infin;</div>
+                    <div class="label" data-i18n="lives">Lives</div>
+                </div>
+                <div class="stat-item">
+                    <div id="hintsUsedValue" class="value">0</div>
+                    <div class="label" data-i18n="hintsUsed">Hints Used</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="play-card card">
+            <h2 class="card-title" data-i18n="playTitle">Play</h2>
+            <div id="globalTimerBar" class="progress-bar hidden">
+                <div class="progress-bar-inner"></div>
+            </div>
+            <div id="questionTimerBar" class="progress-bar hidden">
+                <div class="progress-bar-inner"></div>
+            </div>
+            <div class="question-area" id="questionArea">
+                <span data-i18n="welcomeMessage">Welcome! Select a mode and press Start.</span>
+            </div>
+            <div id="mcOptions" class="mc-options hidden"></div>
+            <input type="text" id="answerInput" class="answer-input" placeholder="Type your answer..." aria-label="Answer Input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" disabled>
+            <div id="feedback" class="feedback"></div>
+            <div class="controls">
+                <button id="startButton" class="primary" data-i18n="start">Start</button>
+                <button id="stopButton" data-i18n="stop" disabled>Stop</button>
+                <button id="checkButton" data-i18n="check" disabled>Check</button>
+                <button id="hintButton" data-i18n="hint" disabled>Hint</button>
+                <button id="skipButton" data-i18n="skip" disabled>Skip</button>
+            </div>
+        </section>
+
+        <section class="settings-card card">
+            <h2 class="card-title" data-i18n="settingsTitle">Settings</h2>
+            <div class="form-group">
+                <label for="gameMode" data-i18n="gameMode">Game Mode</label>
+                <select id="gameMode">
+                    <option value="training" data-i18n="modeTraining">Training</option>
+                    <option value="challenge" data-i18n="modeChallenge">Challenge (90s)</option>
+                    <option value="speed" data-i18n="modeSpeed">Speed (60s)</option>
+                    <option value="mc" data-i18n="modeMc">Multiple Choice (30s/q)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="targetLanguage" data-i18n="targetLanguage">Target Language</label>
+                <select id="targetLanguage">
+                    <option value="ar">العربية (Arabic)</option>
+                    <option value="es">Español (Spanish)</option>
+                    <option value="uk">Українська (Ukrainian)</option>
+                </select>
+            </div>
+            <div class="form-group inline">
+                <label for="enableTts" data-i18n="enableTts">Enable TTS</label>
+                <label class="toggle-switch"><input type="checkbox" id="enableTts"><span class="slider"></span></label>
+            </div>
+            <div class="form-group inline">
+                <label for="speakQuestion" data-i18n="speakQuestion">Speak Question</label>
+                <label class="toggle-switch"><input type="checkbox" id="speakQuestion"><span class="slider"></span></label>
+            </div>
+            <div class="form-group inline">
+                <label for="speakAnswer" data-i18n="speakAnswer">Speak Answer</label>
+                <label class="toggle-switch"><input type="checkbox" id="speakAnswer"><span class="slider"></span></label>
+            </div>
+            <div class="form-group">
+                <label for="voiceSelect" data-i18n="voiceSelect">Voice</label>
+                <select id="voiceSelect"></select>
+            </div>
+             <div class="form-group">
+                <label for="voiceRate" data-i18n="voiceRate">Voice Rate</label>
+                <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1">
+            </div>
+        </section>
+        
+        <section class="generator-card card">
+             <h2 class="card-title" data-i18n="generatorTitle">Data Generator</h2>
+             <div class="form-group">
+                <label for="genCount" data-i18n="genCount">Number of items</label>
+                <input type="number" id="genCount" value="20000" min="10" max="100000">
+             </div>
+             <div class="controls">
+                <button id="genMergeButton" data-i18n="genMerge">Generate & Merge</button>
+                <button id="genReplaceButton" data-i18n="genReplace">Replace All</button>
+                <button id="compactButton" data-i18n="compact">Compact & Dedup</button>
+                <button id="exportButton" data-i18n="export">Export JSON</button>
+             </div>
+             <div id="generationProgress" class="progress-bar"><div class="progress-bar-inner"></div></div>
+             <div id="generationStatus" class="generation-status"></div>
+        </section>
+
+        <section class="review-card card">
+             <h2 class="card-title" data-i18n="reviewTitle">Review Mistakes</h2>
+             <div id="mistakesList"></div>
+             <div class="controls">
+                <button id="clearMistakesButton" data-i18n="clearMistakes">Clear Mistakes</button>
+             </div>
+        </section>
+    </main>
+    
+    <div id="initialLoadOverlay" class="hidden">
+        <p data-i18n="initialSetup">First-time setup. Generating language data...</p>
+        <div id="initialLoadProgress" class="progress-bar"><div class="progress-bar-inner"></div></div>
+        <div id="initialLoadStatus" class="generation-status"></div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // ===================================================================
+            // Settings/State
+            // ===================================================================
+            const LS_KEYS = {
+                DATA: 'ut:data',
+                META: 'ut:meta',
+                SCORE: 'ut:score',
+                MISTAKES: 'ut:mistakes',
+                SETTINGS: 'ut:settings'
+            };
+
+            const DEFAULTS = {
+                SETTINGS: {
+                    uiLang: 'en',
+                    targetLang: 'es',
+                    gameMode: 'training',
+                    tts: {
+                        enabled: true,
+                        speakQuestion: true,
+                        speakAnswer: false,
+                        voiceURI: 'Auto',
+                        rate: 1.0,
+                    }
+                },
+                GAME_STATE: {
+                    active: false,
+                    mode: 'training',
+                    score: 0,
+                    streak: 0,
+                    lives: Infinity,
+                    hintsUsed: 0,
+                    currentItem: null,
+                    mistakes: [],
+                    timer: {
+                        id: null,
+                        startTime: 0,
+                        duration: 0,
+                    },
+                    questionTimer: {
+                        id: null,
+                        startTime: 0,
+                        duration: 0,
+                    },
+                    hintLevel: 0,
+                }
+            };
+            
+            let appState = {
+                settings: {},
+                data: [],
+                mistakes: [],
+                voices: [],
+                isGenerating: false,
+                isGameActive: false,
+            };
+            let gameState = { ...DEFAULTS.GAME_STATE };
+
+            function loadFromStorage(key, defaultValue) {
+                try {
+                    const stored = localStorage.getItem(key);
+                    return stored ? JSON.parse(stored) : defaultValue;
+                } catch (e) {
+                    console.error(`Error loading from localStorage key "${key}":`, e);
+                    return defaultValue;
+                }
+            }
+
+            function saveToStorage(key, value) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (e) {
+                    console.error(`Error saving to localStorage key "${key}":`, e);
+                }
+            }
+
+            function loadState() {
+                appState.settings = loadFromStorage(LS_KEYS.SETTINGS, DEFAULTS.SETTINGS);
+                appState.data = loadFromStorage(LS_KEYS.DATA, []);
+                appState.mistakes = loadFromStorage(LS_KEYS.MISTAKES, []);
+            }
+            
+            function saveSettings() {
+                saveToStorage(LS_KEYS.SETTINGS, appState.settings);
+            }
+            
+            function saveMistakes() {
+                 saveToStorage(LS_KEYS.MISTAKES, appState.mistakes);
+            }
+
+
+            // ===================================================================
+            // i18n
+            // ===================================================================
+            const UI_STRINGS = {
+                en: {
+                    statsTitle: "Stats", score: "Score", streak: "Streak", lives: "Lives", hintsUsed: "Hints Used", gameMode: "Game Mode",
+                    playTitle: "Play", welcomeMessage: "Welcome! Select a mode and press Start.", start: "Start", stop: "Stop", check: "Check", hint: "Hint", skip: "Skip",
+                    settingsTitle: "Settings", targetLanguage: "Target Language", enableTts: "Enable TTS", speakQuestion: "Speak Question", speakAnswer: "Speak Answer", voiceSelect: "Voice", voiceRate: "Voice Rate",
+                    generatorTitle: "Data Generator", genCount: "Number of items", genMerge: "Generate & Merge", genReplace: "Replace All", compact: "Compact & Dedup", "export": "Export JSON",
+                    reviewTitle: "Review Mistakes", clearMistakes: "Clear Mistakes",
+                    modeTraining: "Training", modeChallenge: "Challenge (90s)", modeSpeed: "Speed (60s)", modeMc: "Multiple Choice (30s/q)",
+                    initialSetup: "First-time setup. Generating language data...",
+                    generatingStatus: (current, total) => `Generating... ${current} / ${total}`,
+                    answerPlaceholder: "Type your answer...",
+                    correctToast: "Correct!",
+                    incorrectToast: "Incorrect. The answer was:",
+                },
+                ar: {
+                    statsTitle: "إحصائيات", score: "النقاط", streak: "متتالية", lives: "محاولات", hintsUsed: "مساعدات", gameMode: "وضع اللعب",
+                    playTitle: "لعب", welcomeMessage: "أهلاً بك! اختر وضعاً وابدأ اللعب.", start: "ابدأ", stop: "إيقاف", check: "تحقق", hint: "تلميح", skip: "تخطي",
+                    settingsTitle: "إعدادات", targetLanguage: "اللغة الهدف", enableTts: "تفعيل النطق", speakQuestion: "نطق السؤال", speakAnswer: "نطق الإجابة", voiceSelect: "الصوت", voiceRate: "سرعة الصوت",
+                    generatorTitle: "مولد البيانات", genCount: "عدد العناصر", genMerge: "توليد ودمج", genReplace: "استبدال الكل", compact: "ضغط وإزالة التكرار", "export": "تصدير JSON",
+                    reviewTitle: "مراجعة الأخطاء", clearMistakes: "مسح الأخطاء",
+                    modeTraining: "تدريب", modeChallenge: "تحدي (90 ثانية)", modeSpeed: "سرعة (60 ثانية)", modeMc: "اختيار من متعدد (30 ث/س)",
+                    initialSetup: "إعداد أولي. جاري توليد بيانات اللغة...",
+                    generatingStatus: (current, total) => `جاري التوليد... ${current} / ${total}`,
+                    answerPlaceholder: "اكتب إجابتك هنا...",
+                    correctToast: "صحيح!",
+                    incorrectToast: "خطأ. الإجابة الصحيحة كانت:",
+                },
+                es: {
+                    statsTitle: "Estadísticas", score: "Puntaje", streak: "Racha", lives: "Vidas", hintsUsed: "Pistas Usadas", gameMode: "Modo de Juego",
+                    playTitle: "Jugar", welcomeMessage: "¡Bienvenido! Selecciona un modo y presiona Iniciar.", start: "Iniciar", stop: "Parar", check: "Verificar", hint: "Pista", skip: "Saltar",
+                    settingsTitle: "Ajustes", targetLanguage: "Idioma Objetivo", enableTts: "Habilitar TTS", speakQuestion: "Leer Pregunta", speakAnswer: "Leer Respuesta", voiceSelect: "Voz", voiceRate: "Velocidad de Voz",
+                    generatorTitle: "Generador de Datos", genCount: "Número de ítems", genMerge: "Generar y Unir", genReplace: "Reemplazar Todo", compact: "Compactar y Dedup", "export": "Exportar JSON",
+                    reviewTitle: "Revisar Errores", clearMistakes: "Limpiar Errores",
+                    modeTraining: "Entrenamiento", modeChallenge: "Desafío (90s)", modeSpeed: "Velocidad (60s)", modeMc: "Opción Múltiple (30s/p)",
+                    initialSetup: "Configuración inicial. Generando datos de idioma...",
+                    generatingStatus: (current, total) => `Generando... ${current} / ${total}`,
+                    answerPlaceholder: "Escribe tu respuesta...",
+                    correctToast: "¡Correcto!",
+                    incorrectToast: "Incorrecto. La respuesta era:",
+                },
+                uk: {
+                    statsTitle: "Статистика", score: "Рахунок", streak: "Серія", lives: "Життя", hintsUsed: "Підказки", gameMode: "Режим гри",
+                    playTitle: "Грати", welcomeMessage: "Ласкаво просимо! Оберіть режим та натисніть Старт.", start: "Старт", stop: "Стоп", check: "Перевірити", hint: "Підказка", skip: "Пропустити",
+                    settingsTitle: "Налаштування", targetLanguage: "Цільова мова", enableTts: "Увімкнути TTS", speakQuestion: "Озвучити питання", speakAnswer: "Озвучити відповідь", voiceSelect: "Голос", voiceRate: "Швидкість голосу",
+                    generatorTitle: "Генератор даних", genCount: "Кількість елементів", genMerge: "Згенерувати та об'єднати", genReplace: "Замінити все", compact: "Стиснути та видалити дублікати", "export": "Експорт JSON",
+                    reviewTitle: "Перегляд помилок", clearMistakes: "Очистити помилки",
+                    modeTraining: "Тренування", modeChallenge: "Виклик (90с)", modeSpeed: "Швидкість (60с)", modeMc: "Вибір з варіантів (30с/пит)",
+                    initialSetup: "Перше налаштування. Генерація мовних даних...",
+                    generatingStatus: (current, total) => `Генерація... ${current} / ${total}`,
+                    answerPlaceholder: "Введіть вашу відповідь...",
+                    correctToast: "Правильно!",
+                    incorrectToast: "Неправильно. Правильна відповідь:",
+                }
+            };
+            
+            function getI18nString(key, ...args) {
+                const lang = appState.settings.uiLang || 'en';
+                const stringOrFn = UI_STRINGS[lang][key] || UI_STRINGS['en'][key];
+                if (typeof stringOrFn === 'function') {
+                    return stringOrFn(...args);
+                }
+                return stringOrFn || key;
+            }
+
+            function applyUI() {
+                const lang = appState.settings.uiLang;
+                document.documentElement.lang = lang;
+                document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+                
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.dataset.i18n;
+                    if (key) {
+                        el.textContent = getI18nString(key);
+                    }
+                });
+                
+                // Special cases for attributes
+                const answerInput = document.getElementById('answerInput');
+                if (answerInput) answerInput.placeholder = getI18nString('answerPlaceholder');
+                
+                // update mode display
+                const modeDisplay = document.querySelector('#gameModeDisplay .value');
+                if(modeDisplay) {
+                    const modeKey = 'mode' + gameState.mode.charAt(0).toUpperCase() + gameState.mode.slice(1);
+                    modeDisplay.textContent = getI18nString(modeKey);
+                }
+
+                renderMistakes();
+            }
+
+            // ===================================================================
+            // Utils
+            // ===================================================================
+            const $ = (selector) => document.querySelector(selector);
+            const $$ = (selector) => document.querySelectorAll(selector);
+            const debounce = (func, delay) => {
+                let timeout;
+                return function(...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), delay);
+                };
+            };
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            };
+
+            // ===================================================================
+            // Normalization
+            // ===================================================================
+            const stripArabicDiacritics = (str) => {
+                return str.replace(/[\u064B-\u065F\u0670\u0640]/g, '');
+            };
+
+            const normalizeArabic = (str) => {
+                if (!str) return '';
+                return stripArabicDiacritics(str)
+                    .replace(/[أإآ]/g, 'ا')
+                    .replace(/ى/g, 'ي')
+                    .replace(/ؤ/g, 'و')
+                    .replace(/ئ/g, 'ي')
+                    .replace(/ة/g, 'ه')
+                    .replace(/[.,!?:;`'"()]/g, '') // Arabic and Latin punctuation
+                    .replace(/\s+/g, ' ').trim().toLowerCase();
+            };
+
+            const normalizeLatin = (str) => {
+                if (!str) return '';
+                return str.normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[.,!?:;`'"()¡¿]/g, '')
+                    .replace(/\s+/g, ' ').trim().toLowerCase();
+            };
+
+            function normalize(s, lang) {
+                if (lang === 'ar') {
+                    return normalizeArabic(s);
+                }
+                return normalizeLatin(s);
+            }
+
+            // ===================================================================
+            // TTS
+            // ===================================================================
+            const tts = window.speechSynthesis;
+            
+            function speak(text, lang) {
+                if (!tts || !appState.settings.tts.enabled || !text) return;
+                
+                tts.cancel(); // Prevent queue buildup
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                utterance.rate = parseFloat(appState.settings.tts.rate) || 1.0;
+                
+                const voiceURI = appState.settings.tts.voiceURI;
+                if (voiceURI && voiceURI !== 'Auto') {
+                    const selectedVoice = appState.voices.find(v => v.voiceURI === voiceURI);
+                    if (selectedVoice) {
+                        utterance.voice = selectedVoice;
+                    }
+                } else {
+                    // Auto-select based on lang
+                    const langPrefix = lang.split('-')[0];
+                    const preferredVoices = { 'en': 'en-US', 'es': 'es-ES', 'ar': 'ar-SA', 'uk': 'uk-UA' };
+                    const targetLang = preferredVoices[langPrefix] || lang;
+                    let voice = appState.voices.find(v => v.lang === targetLang && v.localService);
+                    if (!voice) voice = appState.voices.find(v => v.lang === targetLang);
+                    if (!voice) voice = appState.voices.find(v => v.lang.startsWith(langPrefix) && v.localService);
+                    if (!voice) voice = appState.voices.find(v => v.lang.startsWith(langPrefix));
+                    if (voice) utterance.voice = voice;
+                }
+                
+                tts.speak(utterance);
+            }
+
+            function populateVoiceList() {
+                appState.voices = tts.getVoices();
+                const voiceSelect = $('#voiceSelect');
+                if (!voiceSelect) return;
+                
+                const currentVoice = appState.settings.tts.voiceURI;
+                voiceSelect.innerHTML = '';
+                
+                const autoOption = document.createElement('option');
+                autoOption.value = 'Auto';
+                autoOption.textContent = 'Auto';
+                voiceSelect.appendChild(autoOption);
+                
+                appState.voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    if (voice.default) option.textContent += ' [Default]';
+                    option.value = voice.voiceURI;
+                    voiceSelect.appendChild(option);
+                });
+                
+                voiceSelect.value = currentVoice;
+                if (!voiceSelect.value) {
+                    voiceSelect.value = 'Auto';
+                    appState.settings.tts.voiceURI = 'Auto';
+                }
+            }
+
+
+            // ===================================================================
+            // Data Gen
+            // ===================================================================
+            const BASE_NOUNS = [
+                { en: "book", ar: "كتاب", es: "libro", uk: "книга" },
+                { en: "house", ar: "منزل", es: "casa", uk: "будинок" },
+                { en: "car", ar: "سيارة", es: "coche", uk: "автомобіль" },
+                { en: "tree", ar: "شجرة", es: "árbol", uk: "дерево" },
+                { en: "water", ar: "ماء", es: "agua", uk: "вода" },
+                { en: "sun", ar: "شمس", es: "sol", uk: "сонце" },
+                { en: "friend", ar: "صديق", es: "amigo", uk: "друг" },
+                { en: "city", ar: "مدينة", es: "ciudad", uk: "місто" },
+                { en: "pen", ar: "قلم", es: "bolígrafo", uk: "ручка" },
+                { en: "chair", ar: "كرسي", es: "silla", uk: "стілець" },
+                { en: "table", ar: "طاولة", es: "mesa", uk: "стіл" },
+                { en: "phone", ar: "هاتف", es: "teléfono", uk: "телефон" },
+                { en: "door", ar: "باب", es: "puerta", uk: "двері" },
+                { en: "window", ar: "نافذة", es: "ventana", uk: "вікно" },
+                { en: "food", ar: "طعام", es: "comida", uk: "їжа" },
+                { en: "school", ar: "مدرسة", es: "escuela", uk: "школа" },
+                { en: "computer", ar: "حاسوب", es: "ordenador", uk: "комп'ютер" },
+                { en: "time", ar: "وقت", es: "tiempo", uk: "час" },
+                { en: "hand", ar: "يد", es: "mano", uk: "рука" },
+                { en: "road", ar: "طريق", es: "camino", uk: "дорога" },
+            ];
+
+            const BASE_VERBS = [
+                { en: "read", ar: "يقرأ", es: "leer", uk: "читати" },
+                { en: "write", ar: "يكتب", es: "escribir", uk: "писати" },
+                { en: "go", ar: "يذهب", es: "ir", uk: "йти" },
+                { en: "see", ar: "يرى", es: "ver", uk: "бачити" },
+                { en: "eat", ar: "يأكل", es: "comer", uk: "їсти" },
+                { en: "drink", ar: "يشرب", es: "beber", uk: "пити" },
+                { en: "run", ar: "يجري", es: "correr", uk: "бігти" },
+                { en: "sleep", ar: "ينام", es: "dormir", uk: "спати" },
+                { en: "work", ar: "يعمل", es: "trabajar", uk: "працювати" },
+                { en: "play", ar: "يلعب", es: "jugar", uk: "грати" },
+                { en: "give", ar: "يعطي", es: "dar", uk: "давати" },
+                { en: "take", ar: "يأخذ", es: "tomar", uk: "брати" },
+                { en: "open", ar: "يفتح", es: "abrir", uk: "відкривати" },
+                { en: "close", ar: "يغلق", es: "cerrar", uk: "закривати" },
+                { en: "love", ar: "يحب", es: "amar", uk: "любити" },
+                { en: "help", ar: "يساعد", es: "ayudar", uk: "допомагати" },
+                { en: "think", ar: "يفكر", es: "pensar", uk: "думати" },
+                { en: "say", ar: "يقول", es: "decir", uk: "казати" },
+                { en: "know", ar: "يعرف", es: "saber", uk: "знати" },
+                { en: "listen", ar: "يستمع", es: "escuchar", uk: "слухати" },
+            ];
+            
+            const TEMPLATES = [
+                { t: "I need to {v} now.", type: "verb" },
+                { t: "Can you {v} this?", type: "verb" },
+                { t: "She wants to {v} the {n}.", type: "verb" },
+                { t: "He decided to {v} home.", type: "verb" },
+                { t: "They always {v} in the morning.", type: "verb" },
+                { t: "We should {v} more carefully.", type: "verb" },
+                { t: "Please {v} the document.", type: "verb" },
+                { t: "I forgot to {v} the door.", type: "verb" },
+                { t: "Let's {v} together.", type: "verb" },
+                { t: "You must {v} to the rules.", type: "verb" },
+                { t: "He tried to {v} the problem.", type: "verb" },
+                { t: "She will {v} tomorrow.", type: "verb" },
+                { t: "I like to {v} early.", type: "verb" },
+                { t: "They have to {v} a lot.", type: "verb" },
+                { t: "We plan to {v} next week.", type: "verb" },
+                { t: "Do you want to {v} with me?", type: "verb" },
+                { t: "She learned how to {v}.", type: "verb" },
+                { t: "He helps me to {v}.", type: "verb" },
+                { t: "I can't {v} right now.", type: "verb" },
+                { t: "They refused to {v}.", type: "verb" },
+                { t: "I will {v} it later.", type: "verb" },
+                { t: "She started to {v} slowly.", type: "verb" },
+                { t: "We must {v} for the exam.", type: "verb" },
+                { t: "You need to {v} this message.", type: "verb" },
+                { t: "He promised to {v} every day.", type: "verb" },
+                { t: "The big {n} is on the table.", type: "noun" },
+                { t: "I have a new {n}.", type: "noun" },
+                { t: "Where is my {n}?", type: "noun" },
+                { t: "She gave me a beautiful {n}.", type: "noun" },
+                { t: "This {n} is very old.", type: "noun" },
+                { t: "I lost my favorite {n}.", type: "noun" },
+                { t: "He bought a red {n}.", type: "noun" },
+                { t: "The {n} is broken.", type: "noun" },
+                { t: "Can I borrow your {n}?", type: "noun" },
+                { t: "We need a bigger {n}.", type: "noun" },
+                { t: "This is not my {n}.", type: "noun" },
+                { t: "The {n} belongs to him.", type: "noun" },
+                { t: "I see a small {n} over there.", type: "noun" },
+                { t: "She is holding a {n}.", type: "noun" },
+                { t: "The price of the {n} is high.", type: "noun" },
+                { t: "He found a {n} on the street.", type: "noun" },
+                { t: "I need to clean the {n}.", type: "noun" },
+                { t: "This {n} is a gift from my friend.", type: "noun" },
+                { t: "The color of the {n} is blue.", type: "noun" },
+                { t: "There is a {n} in the box.", type: "noun" },
+                { t: "He fixed the broken {n}.", type: "noun" },
+                { t: "The key to the {n} is lost.", type: "noun" },
+                { t: "I read a {n} about history.", type: "noun" },
+                { t: "She drew a picture of a {n}.", type: "noun" },
+                { t: "We are looking for a {n}.", type: "noun" },
+            ];
+            
+            function generateData(count, merge = false) {
+                if (appState.isGenerating) return;
+                appState.isGenerating = true;
+
+                const statusEl = $('#generationStatus');
+                const progressInnerEl = $('#generationProgress .progress-bar-inner');
+                
+                const buttons = $$('.generator-card button');
+                buttons.forEach(b => b.disabled = true);
+                
+                let generated = [];
+                let i = 0;
+                const batchSize = 1000;
+                const total = count;
+                
+                function generateBatch() {
+                    const batchEnd = Math.min(i + batchSize, total);
+                    for (; i < batchEnd; i++) {
+                        const template = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)];
+                        let sentence = template.t;
+                        let target, type;
+                        
+                        const noun1 = BASE_NOUNS[Math.floor(Math.random() * BASE_NOUNS.length)];
+                        const verb1 = BASE_VERBS[Math.floor(Math.random() * BASE_VERBS.length)];
+                        
+                        if (template.type === "noun") {
+                            target = noun1;
+                            type = "noun";
+                            sentence = sentence.replace('{n}', target.en);
+                        } else {
+                            target = verb1;
+                            type = "verb";
+                            sentence = sentence.replace('{v}', target.en).replace('{n}', noun1.en);
+                        }
+
+                        const targetIdx = sentence.indexOf(target.en);
+                        if(targetIdx === -1) continue; // Skip if target not found (e.g. template error)
+
+                        generated.push({
+                            id: `${Date.now()}-${i}`,
+                            sentence,
+                            target: target.en,
+                            targetIdx,
+                            type,
+                            translations: {
+                                ar: target.ar,
+                                es: target.es,
+                                uk: target.uk
+                            }
+                        });
+                    }
+
+                    const progress = (i / total) * 100;
+                    if (statusEl) statusEl.textContent = getI18nString('generatingStatus', i, total);
+                    if (progressInnerEl) progressInnerEl.style.width = `${progress}%`;
+                    
+                    if (i < total) {
+                        setTimeout(generateBatch, 8);
+                    } else {
+                        // Finished
+                        let finalData = dedupData(generated);
+                        if (merge) {
+                           const merged = [...appState.data, ...finalData];
+                           appState.data = dedupData(merged);
+                        } else {
+                           appState.data = finalData;
+                        }
+                        
+                        saveToStorage(LS_KEYS.DATA, appState.data);
+                        if (statusEl) statusEl.textContent = `Generated and saved ${appState.data.length} unique items.`;
+                        appState.isGenerating = false;
+                        buttons.forEach(b => b.disabled = false);
+                    }
+                }
+                
+                generateBatch();
+            }
+            
+            function dedupData(data) {
+                const seen = new Set();
+                return data.filter(item => {
+                    const key = `${normalizeLatin(item.sentence)}|${normalizeLatin(item.target)}|${item.type}`;
+                    if (seen.has(key)) {
+                        return false;
+                    } else {
+                        seen.add(key);
+                        return true;
+                    }
+                });
+            }
+
+            // ===================================================================
+            // UI
+            // ===================================================================
+            function updateStatsUI() {
+                $('#scoreValue').textContent = gameState.score;
+                $('#streakValue').textContent = gameState.streak;
+                $('#livesValue').textContent = gameState.lives === Infinity ? '∞' : gameState.lives;
+                $('#hintsUsedValue').textContent = gameState.hintsUsed;
+                
+                const modeKey = 'mode' + gameState.mode.charAt(0).toUpperCase() + gameState.mode.slice(1);
+                $('#gameModeDisplay .value').textContent = getI18nString(modeKey);
+            }
+            
+            function setFeedback(message = '', type = '') {
+                const el = $('#feedback');
+                el.textContent = message;
+                el.className = `feedback ${type}`;
+            }
+
+            function setAnswerInputState(enabled, correct = null) {
+                const input = $('#answerInput');
+                input.disabled = !enabled;
+                if (!enabled) {
+                    input.value = '';
+                }
+                if (correct === true) {
+                    input.style.borderColor = 'var(--correct-color)';
+                } else if (correct === false) {
+                    input.style.borderColor = 'var(--incorrect-color)';
+                } else {
+                    input.style.borderColor = 'var(--border-color)';
+                }
+            }
+
+
+            // ===================================================================
+            // Game Core
+            // ===================================================================
+            function startGame() {
+                if (appState.data.length === 0) {
+                    setFeedback('No data available. Please generate data first.');
+                    return;
+                }
+                
+                gameState = {
+                    ...DEFAULTS.GAME_STATE,
+                    mode: appState.settings.gameMode,
+                    mistakes: [],
+                };
+                
+                $('#startButton').disabled = true;
+                $('#stopButton').disabled = false;
+                $('#gameMode').disabled = true;
+                $('#targetLanguage').disabled = true;
+
+                if (gameState.mode === 'challenge') {
+                    gameState.lives = 3;
+                    startGlobalTimer(90000);
+                } else if (gameState.mode === 'speed') {
+                    gameState.lives = 1;
+                    startGlobalTimer(60000);
+                } else if (gameState.mode === 'mc') {
+                    gameState.lives = 3;
+                }
+                
+                appState.isGameActive = true;
+                nextQuestion();
+                updateStatsUI();
+            }
+
+            function stopGame() {
+                appState.isGameActive = false;
+                stopGlobalTimer();
+                stopQuestionTimer();
+                
+                $('#startButton').disabled = false;
+                $('#stopButton').disabled = true;
+                $('#gameMode').disabled = false;
+                $('#targetLanguage').disabled = false;
+
+                $('#checkButton').disabled = true;
+                $('#hintButton').disabled = true;
+                $('#skipButton').disabled = true;
+                
+                setAnswerInputState(false);
+                $('#mcOptions').classList.add('hidden');
+                $('#questionArea').innerHTML = getI18nString('welcomeMessage');
+                setFeedback(`Game over! Final Score: ${gameState.score}`);
+            }
+
+            function nextQuestion() {
+                if (!appState.isGameActive || appState.data.length === 0) {
+                    stopGame();
+                    return;
+                }
+
+                gameState.currentItem = appState.data[Math.floor(Math.random() * appState.data.length)];
+                gameState.hintLevel = 0;
+                
+                const { sentence, target, targetIdx } = gameState.currentItem;
+                const before = sentence.substring(0, targetIdx);
+                const after = sentence.substring(targetIdx + target.length);
+                $('#questionArea').innerHTML = `${before}<u>${target}</u>${after}`;
+
+                setAnswerInputState(false);
+                $('#mcOptions').classList.add('hidden');
+                $('#mcOptions').innerHTML = '';
+                
+                if (gameState.mode === 'mc') {
+                    setupMultipleChoice();
+                    startQuestionTimer(30000);
+                } else {
+                    setAnswerInputState(true);
+                    $('#answerInput').focus();
+                }
+
+                $('#checkButton').disabled = false;
+                $('#hintButton').disabled = false;
+                $('#skipButton').disabled = false;
+                
+                setFeedback('');
+
+                if (appState.settings.tts.enabled && appState.settings.tts.speakQuestion) {
+                    speak(sentence, 'en');
+                }
+            }
+            
+            function checkAnswer(userAnswer) {
+                const targetLang = appState.settings.targetLang;
+                const correctAnswersRaw = gameState.currentItem.translations[targetLang];
+                // Handle both string and array of strings for correct answers
+                const correctAnswers = Array.isArray(correctAnswersRaw) ? correctAnswersRaw : [correctAnswersRaw];
+
+                const normalizedUserAnswer = normalize(userAnswer, targetLang);
+                
+                const isCorrect = correctAnswers.some(ans => normalize(ans, targetLang) === normalizedUserAnswer);
+
+                if (isCorrect) {
+                    handleCorrectAnswer(correctAnswers);
+                } else {
+                    // For non-MC modes, this is called by button or final Enter.
+                    // For auto-accept, we wait until the input is complete.
+                    // This function is called by auto-accept on every keystroke, so no immediate incorrect feedback
+                }
+                return isCorrect;
+            }
+            
+            function manualCheck() {
+                const userAnswer = $('#answerInput').value;
+                if (!userAnswer) return;
+                
+                const isCorrect = checkAnswer(userAnswer);
+                if (!isCorrect) {
+                    handleIncorrectAnswer();
+                }
+            }
+
+            function handleCorrectAnswer(correctAnswers) {
+                gameState.score += 10 + gameState.streak;
+                gameState.streak++;
+                
+                if (appState.settings.tts.enabled && appState.settings.tts.speakAnswer) {
+                    speak(correctAnswers[0], appState.settings.targetLang);
+                }
+
+                setFeedback(getI18nString('correctToast'), 'correct');
+                if (gameState.mode !== 'mc') {
+                    setAnswerInputState(false, true);
+                } else {
+                    stopQuestionTimer();
+                }
+                
+                updateStatsUI();
+                setTimeout(nextQuestion, 1200);
+            }
+
+            function handleIncorrectAnswer() {
+                if (gameState.mode !== 'training') {
+                    gameState.lives--;
+                }
+                gameState.streak = 0;
+                
+                const targetLang = appState.settings.targetLang;
+                const correctAnswers = gameState.currentItem.translations[targetLang];
+                const displayAnswer = Array.isArray(correctAnswers) ? correctAnswers.join(' / ') : correctAnswers;
+                
+                addMistake(gameState.currentItem, gameState.mode === 'mc' ? '(MC timeout)' : $('#answerInput').value);
+
+                setFeedback(`${getI18nString('incorrectToast')} ${displayAnswer}`, 'incorrect');
+                if (gameState.mode !== 'mc') {
+                    setAnswerInputState(false, false);
+                } else {
+                    stopQuestionTimer();
+                }
+
+                if (appState.settings.tts.enabled && appState.settings.tts.speakAnswer) {
+                    speak(displayAnswer, targetLang);
+                }
+                
+                updateStatsUI();
+                
+                if (gameState.lives <= 0 && gameState.lives !== Infinity) {
+                    setTimeout(stopGame, 2000);
+                } else {
+                    setTimeout(nextQuestion, 2000);
+                }
+            }
+            
+            function skipQuestion() {
+                if (gameState.mode !== 'training') {
+                    gameState.score = Math.max(0, gameState.score - 5);
+                    gameState.lives--;
+                }
+                gameState.streak = 0;
+                updateStatsUI();
+
+                if (gameState.lives <= 0 && gameState.lives !== Infinity) {
+                    stopGame();
+                } else {
+                    nextQuestion();
+                }
+            }
+            
+            // ===================================================================
+            // Hints
+            // ===================================================================
+            function showHint() {
+                if (!gameState.currentItem) return;
+                gameState.hintLevel++;
+                gameState.hintsUsed++;
+
+                const targetLang = appState.settings.targetLang;
+                let correctAnswer = gameState.currentItem.translations[targetLang];
+                if (Array.isArray(correctAnswer)) correctAnswer = correctAnswer[0];
+                const normalizedAnswer = normalize(correctAnswer, targetLang);
+
+                let hintText = '';
+                let penalty = 0;
+
+                switch (gameState.hintLevel) {
+                    case 1:
+                        hintText = `Hint: Starts with "${normalizedAnswer.charAt(0)}"`;
+                        penalty = 1;
+                        break;
+                    case 2:
+                        hintText = `Hint: Is ${normalizedAnswer.length} characters long`;
+                        penalty = 1;
+                        break;
+                    case 3:
+                        const { sentence, target } = gameState.currentItem;
+                        const fallbackSentence = sentence.replace(target, `[${correctAnswer}]`);
+                        hintText = `Hint: ${fallbackSentence}`;
+                        penalty = 2;
+                        $('#hintButton').disabled = true;
+                        break;
+                    default:
+                        return;
+                }
+                
+                if (gameState.mode !== 'training') {
+                    gameState.score = Math.max(0, gameState.score - penalty);
+                }
+                
+                setFeedback(hintText);
+                updateStatsUI();
+            }
+
+
+            // ===================================================================
+            // Timers
+            // ===================================================================
+            function startGlobalTimer(duration) {
+                stopGlobalTimer();
+                $('#globalTimerBar').classList.remove('hidden');
+                gameState.timer.startTime = performance.now();
+                gameState.timer.duration = duration;
+                gameState.timer.id = requestAnimationFrame(timerLoop);
+            }
+            
+            function stopGlobalTimer() {
+                if (gameState.timer.id) {
+                    cancelAnimationFrame(gameState.timer.id);
+                    gameState.timer.id = null;
+                }
+                $('#globalTimerBar').classList.add('hidden');
+                $('#globalTimerBar .progress-bar-inner').style.transform = 'scaleX(0)';
+            }
+            
+            function timerLoop(timestamp) {
+                const elapsed = timestamp - gameState.timer.startTime;
+                const progress = 1 - (elapsed / gameState.timer.duration);
+                
+                if (progress <= 0) {
+                    $('#globalTimerBar .progress-bar-inner').style.transform = 'scaleX(0)';
+                    stopGame();
+                } else {
+                    $('#globalTimerBar .progress-bar-inner').style.transform = `scaleX(${progress})`;
+                    gameState.timer.id = requestAnimationFrame(timerLoop);
+                }
+            }
+
+            function startQuestionTimer(duration) {
+                stopQuestionTimer();
+                $('#questionTimerBar').classList.remove('hidden');
+                gameState.questionTimer.startTime = performance.now();
+                gameState.questionTimer.duration = duration;
+                gameState.questionTimer.id = requestAnimationFrame(questionTimerLoop);
+            }
+            
+            function stopQuestionTimer() {
+                 if (gameState.questionTimer.id) {
+                    cancelAnimationFrame(gameState.questionTimer.id);
+                    gameState.questionTimer.id = null;
+                }
+                $('#questionTimerBar').classList.add('hidden');
+                $('#questionTimerBar .progress-bar-inner').style.transform = 'scaleX(0)';
+            }
+
+            function questionTimerLoop(timestamp) {
+                const elapsed = timestamp - gameState.questionTimer.startTime;
+                const progress = 1 - (elapsed / gameState.questionTimer.duration);
+                
+                if (progress <= 0) {
+                    $('#questionTimerBar .progress-bar-inner').style.transform = 'scaleX(0)';
+                    // Mark wrong due to timeout
+                    const correctChoice = $(`button[data-correct="true"]`);
+                    if(correctChoice) correctChoice.classList.add('correct-choice');
+                    handleIncorrectAnswer();
+                } else {
+                    $('#questionTimerBar .progress-bar-inner').style.transform = `scaleX(${progress})`;
+                    gameState.questionTimer.id = requestAnimationFrame(questionTimerLoop);
+                }
+            }
+
+            // ===================================================================
+            // MultipleChoice
+            // ===================================================================
+            function setupMultipleChoice() {
+                const targetLang = appState.settings.targetLang;
+                const correctAnswer = gameState.currentItem.translations[targetLang];
+                let options = [correctAnswer];
+
+                // Find 3 distractors
+                const allTranslations = new Set(appState.data.map(item => item.translations[targetLang]));
+                allTranslations.delete(correctAnswer);
+                const distractorsPool = shuffleArray(Array.from(allTranslations));
+
+                for (let i = 0; i < 3 && i < distractorsPool.length; i++) {
+                    options.push(distractorsPool[i]);
+                }
+                // If not enough distractors, fill with simple variations (not ideal but safe)
+                while (options.length < 4) {
+                    options.push(`Option ${options.length + 1}`);
+                }
+
+                options = shuffleArray(options);
+                
+                const mcOptionsContainer = $('#mcOptions');
+                mcOptionsContainer.innerHTML = '';
+                options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'mc-option';
+                    btn.textContent = opt;
+                    const isCorrect = (opt === correctAnswer);
+                    btn.dataset.correct = isCorrect;
+                    btn.addEventListener('click', () => handleMCChoice(btn, isCorrect));
+                    mcOptionsContainer.appendChild(btn);
+                });
+                
+                mcOptionsContainer.classList.remove('hidden');
+                $('#answerInput').classList.add('hidden');
+            }
+            
+            function handleMCChoice(button, isCorrect) {
+                // Disable all buttons after a choice is made
+                $$('.mc-option').forEach(btn => btn.disabled = true);
+                
+                if (isCorrect) {
+                    button.classList.add('correct-choice');
+                    handleCorrectAnswer([button.textContent]);
+                } else {
+                    button.classList.add('incorrect-choice');
+                    const correctChoice = $(`button[data-correct="true"]`);
+                    if (correctChoice) correctChoice.classList.add('correct-choice');
+                    handleIncorrectAnswer();
+                }
+            }
+
+            // ===================================================================
+            // Review/Mistakes
+            // ===================================================================
+            function addMistake(item, givenAnswer) {
+                const mistake = {
+                    ts: new Date().toISOString(),
+                    item: item,
+                    given: givenAnswer,
+                };
+                appState.mistakes.unshift(mistake);
+                if (appState.mistakes.length > 300) {
+                    appState.mistakes.pop();
+                }
+                saveMistakes();
+                renderMistakes();
+            }
+
+            function renderMistakes() {
+                const listEl = $('#mistakesList');
+                if (!listEl) return;
+                
+                if (appState.mistakes.length === 0) {
+                    listEl.innerHTML = `<p style="text-align: center; padding: 1rem; opacity: 0.7;">No mistakes recorded yet.</p>`;
+                    return;
+                }
+
+                listEl.innerHTML = appState.mistakes.map(mistake => {
+                    const { item, given, ts } = mistake;
+                    const targetLang = appState.settings.targetLang;
+                    const correct = Array.isArray(item.translations[targetLang]) ? item.translations[targetLang].join(' / ') : item.translations[targetLang];
+                    const sentenceHTML = item.sentence.replace(item.target, `<u>${item.target}</u>`);
+
+                    return `
+                        <div class="mistake-item">
+                            <div class="meta">${new Date(ts).toLocaleString()}</div>
+                            <div class="sentence">${sentenceHTML}</div>
+                            <div class="answers">
+                                <span class="given">Your answer: ${given}</span><br>
+                                <span class="correct">Correct: ${correct}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            function clearMistakes() {
+                if(confirm("Are you sure you want to clear all mistakes? This cannot be undone.")) {
+                    appState.mistakes = [];
+                    saveMistakes();
+                    renderMistakes();
+                }
+            }
+            
+
+            // ===================================================================
+            // Bindings
+            // ===================================================================
+            function initBindings() {
+                // Top Bar
+                $('#uiLanguageSelector').addEventListener('change', (e) => {
+                    appState.settings.uiLang = e.target.value;
+                    saveSettings();
+                    applyUI();
+                });
+                
+                // Game controls
+                $('#startButton').addEventListener('click', startGame);
+                $('#stopButton').addEventListener('click', stopGame);
+                $('#checkButton').addEventListener('click', manualCheck);
+                $('#hintButton').addEventListener('click', showHint);
+                $('#skipButton').addEventListener('click', skipQuestion);
+                
+                $('#answerInput').addEventListener('input', (e) => {
+                    const isCorrect = checkAnswer(e.target.value);
+                    if (isCorrect) {
+                       // handled in checkAnswer -> handleCorrectAnswer
+                    }
+                });
+                $('#answerInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        manualCheck();
+                    }
+                });
+
+                // Settings
+                $('#gameMode').addEventListener('change', e => { appState.settings.gameMode = e.target.value; saveSettings(); });
+                $('#targetLanguage').addEventListener('change', e => { appState.settings.targetLang = e.target.value; saveSettings(); });
+                
+                // TTS Settings
+                $('#enableTts').addEventListener('change', e => { appState.settings.tts.enabled = e.target.checked; saveSettings(); });
+                $('#speakQuestion').addEventListener('change', e => { appState.settings.tts.speakQuestion = e.target.checked; saveSettings(); });
+                $('#speakAnswer').addEventListener('change', e => { appState.settings.tts.speakAnswer = e.target.checked; saveSettings(); });
+                $('#voiceSelect').addEventListener('change', e => { appState.settings.tts.voiceURI = e.target.value; saveSettings(); });
+                $('#voiceRate').addEventListener('input', e => { appState.settings.tts.rate = parseFloat(e.target.value); saveSettings(); });
+
+                // Generator
+                $('#genMergeButton').addEventListener('click', () => generateData(parseInt($('#genCount').value, 10), true));
+                $('#genReplaceButton').addEventListener('click', () => generateData(parseInt($('#genCount').value, 10), false));
+                $('#compactButton').addEventListener('click', () => {
+                    appState.data = dedupData(appState.data);
+                    saveToStorage(LS_KEYS.DATA, appState.data);
+                    $('#generationStatus').textContent = `Compacted. Now ${appState.data.length} items.`;
+                });
+                $('#exportButton').addEventListener('click', () => {
+                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState.data));
+                     const downloadAnchorNode = document.createElement('a');
+                     downloadAnchorNode.setAttribute("href", dataStr);
+                     downloadAnchorNode.setAttribute("download", "lingua_offline_data.json");
+                     document.body.appendChild(downloadAnchorNode);
+                     downloadAnchorNode.click();
+                     downloadAnchorNode.remove();
+                });
+                
+                // Review
+                $('#clearMistakesButton').addEventListener('click', clearMistakes);
+
+                // TTS Voices
+                if(tts.onvoiceschanged !== undefined) {
+                    tts.onvoiceschanged = populateVoiceList;
+                }
+            }
+
+
+            // ===================================================================
+            // Boot
+            // ===================================================================
+            function init() {
+                loadState();
+                
+                // Populate language selector
+                const langSelector = $('#uiLanguageSelector');
+                Object.keys(UI_STRINGS).forEach(lang => {
+                    const option = document.createElement('option');
+                    option.value = lang;
+                    option.textContent = { en: 'English', ar: 'العربية', es: 'Español', uk: 'Українська' }[lang];
+                    langSelector.appendChild(option);
+                });
+                langSelector.value = appState.settings.uiLang;
+                
+                // Set initial settings UI state
+                $('#gameMode').value = appState.settings.gameMode;
+                $('#targetLanguage').value = appState.settings.targetLang;
+                $('#enableTts').checked = appState.settings.tts.enabled;
+                $('#speakQuestion').checked = appState.settings.tts.speakQuestion;
+                $('#speakAnswer').checked = appState.settings.tts.speakAnswer;
+                $('#voiceRate').value = appState.settings.tts.rate;
+
+                applyUI();
+                initBindings();
+                populateVoiceList();
+                
+                if (appState.data.length === 0) {
+                    const overlay = $('#initialLoadOverlay');
+                    const statusEl = $('#initialLoadStatus');
+                    const progressInnerEl = $('#initialLoadProgress .progress-bar-inner');
+
+                    overlay.classList.remove('hidden');
+                    appState.isGenerating = true;
+                    
+                    let generated = [];
+                    let i = 0;
+                    const batchSize = 1000;
+                    const total = 20000;
+
+                    function generateBatch() {
+                        const batchEnd = Math.min(i + batchSize, total);
+                        for (; i < batchEnd; i++) {
+                            const template = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)];
+                            let sentence = template.t;
+                            let target, type;
+                            
+                            const noun1 = BASE_NOUNS[Math.floor(Math.random() * BASE_NOUNS.length)];
+                            const verb1 = BASE_VERBS[Math.floor(Math.random() * BASE_VERBS.length)];
+                            
+                            if (template.type === "noun") {
+                                target = noun1;
+                                type = "noun";
+                                sentence = sentence.replace('{n}', target.en);
+                            } else {
+                                target = verb1;
+                                type = "verb";
+                                sentence = sentence.replace('{v}', target.en).replace('{n}', noun1.en);
+                            }
+
+                            const targetIdx = sentence.indexOf(target.en);
+                            if(targetIdx === -1) continue;
+
+                            generated.push({
+                                id: `${Date.now()}-${i}`,
+                                sentence,
+                                target: target.en,
+                                targetIdx,
+                                type,
+                                translations: { ar: target.ar, es: target.es, uk: target.uk }
+                            });
+                        }
+
+                        const progress = (i / total) * 100;
+                        if (statusEl) statusEl.textContent = getI18nString('generatingStatus', i, total);
+                        if (progressInnerEl) progressInnerEl.style.width = `${progress}%`;
+                        
+                        if (i < total) {
+                            setTimeout(generateBatch, 8);
+                        } else {
+                            appState.data = dedupData(generated);
+                            saveToStorage(LS_KEYS.DATA, appState.data);
+                            appState.isGenerating = false;
+                            overlay.classList.add('hidden');
+                        }
+                    }
+                    generateBatch();
+                }
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
